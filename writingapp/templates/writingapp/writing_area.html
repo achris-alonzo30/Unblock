@@ -1,0 +1,201 @@
+{% extends "writingapp/base.html" %}
+
+{% block title %} Writing Area {% endblock %}
+
+{% block style %}
+    <style>
+        .title-input {
+            background-color: #F6F3E4;
+            color: #594A47;
+            font-size: 2rem;
+            border: none;
+            outline: none;
+            border-bottom: 1px solid #594A47;
+            font-family: 'FeelingPassionate', cursive;
+        }
+        
+        .writing-area {
+            background-color: #F6F3E4;
+            color: #594A47;
+            font-size: 1rem;
+            font-family: 'IBM Plex Mono', monospace;
+            width: 100%;
+            padding: 32px;
+            border: none;
+            outline: none;
+            resize: vertical;
+        }
+
+        .button-icons {
+            border: none; /* Remove button border */
+            background: none; /* Remove button background */
+            cursor: pointer; /* Change cursor to pointer on hover */
+            padding: 0; /* Remove any padding */
+            color: #594A47; /* Set text color */
+            text-decoration: underline; /* Add underline effect to mimic link */
+        }
+
+        .num-of-words {
+            color: #594A47;
+            font-size: 1.5rem;
+            font-family: 'IBM Plex Mono', monospace;
+        }
+
+        .timer {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 5rem;
+            font-family: 'IBM Plex Mono', monospace;
+            color: #594A47;
+        }
+
+        .blur-effect {
+            filter: blur(0);
+            transition: filter 0.5s ease-in-out;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+    <div class="container mt-4 mb-4">
+
+        <form id="draftForm" method="POST" action="{% url 'writingapp:home' %}" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="mt-4 ml-5">
+                <div class="d-flex justify-content-between align-items-center">
+                    <!-- Gets you back to Home Page -->
+                    <button id="backButton" class="button-icons">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="#594A47" class="bi bi-arrow-left" viewBox="0 0 16 16">
+                            <path fill-rule="evenodd" d="M15 8a.5.5 0 0 0-.5-.5H2.707l3.147-3.146a.5.5 0 1 0-.708-.708l-4 4a.5.5 0 0 0 0 .708l4 4a.5.5 0 0 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8z"/>
+                        </svg>
+                    </button>
+
+                    <!-- Enter Title -->
+                    {{ draft_form.title }}
+
+                    <!-- Downloads Your Current Draft -->
+                    <button id="downloadButton" type="submit" class="button-icons" title="Download">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="#594A47" class="bi bi-download" viewBox="0 0 16 16">
+                            <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+                            <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <div class="m-5">
+                <!-- Text Content -->
+                {{ draft_form.content }}
+            </div>
+
+            <!-- Hidden input field to store which button was clicked -->
+            <input type="hidden" id="buttonClicked" name="button_clicked" value="" />
+        </form>
+
+
+        <div>
+            <p class="text-center num-of-words">0 Words</p>
+        </div>
+
+    </div>
+
+    <div class="timer" id="timer">5.00</div>
+    {% block script %}
+        <script>
+            const writingArea = document.querySelector('.writing-area');
+            const numOfWords = document.querySelector('.num-of-words');
+            const timerElement = document.getElementById('timer');
+            const contentContainer = document.querySelector('.container');
+            const backButton = document.getElementById('backButton');
+            const downloadButton = document.getElementById('downloadButton');
+            const buttonClickedField = document.getElementById('buttonClicked');
+
+            let typingTimer;
+            let countdownTimer;
+            let countdownInProgress = false;
+            let initialInterval;
+
+            writingArea.addEventListener('input', handleTyping);
+
+            function handleTyping() {
+                clearTimeout(typingTimer);
+                clearTimeout(countdownTimer);
+                clearInterval(initialInterval);
+
+                initialInterval = setTimeout(startCountdown, 3000);
+            }
+
+            function startCountdown() {
+                countdownInProgress = true;
+                let remainingTime = 5000; // 5 seconds
+
+                timerElement.style.display = 'block';
+
+                countdownTimer = setInterval(function () {
+                    remainingTime -= 10; // Decrement by 10 milliseconds
+                    const seconds = (remainingTime / 1000).toFixed(2);
+                    timerElement.textContent = seconds;
+
+                    if (remainingTime <= 0) {
+                        clearInterval(countdownTimer);
+                        writingArea.value = ''; // Clear the textarea
+                        updateWordCount(0); // Reset word count to 0
+                        timerElement.style.display = 'none';
+                        contentContainer.style.filter = 'none'; // Clear blur effect
+                        countdownInProgress = false;
+                    } else {
+                        // Adjust blurring intensity based on remaining time
+                        const blurIntensity = 1 - (remainingTime / 5000); // 5000ms is the total countdown time
+                        contentContainer.style.filter = `blur(${blurIntensity * 10}px)`;
+                    }
+                }, 10); // Update every 10 milliseconds
+            }
+
+            writingArea.addEventListener('input', function () {
+                if (countdownInProgress) {
+                    clearTimeout(countdownTimer);
+                    clearInterval(initialInterval);
+                    timerElement.style.display = 'none';
+                    contentContainer.style.filter = 'none'; // Clear blur effect
+                    countdownInProgress = false;
+                }
+
+                handleTyping();
+            });
+
+            function updateWordCount(count) {
+                numOfWords.textContent = `${count} ${count === 1 ? 'Word' : 'Words'}`;
+            }
+
+            updateWordCount(0); // Initialize word count to 0
+            writingArea.addEventListener('input', function () {
+                const content = writingArea.value;
+                const words = content.trim().split(/\s+/).filter(word => word !== '');
+                updateWordCount(words.length); // Update word count on input
+            });
+
+            backButton.addEventListener('click', function() {
+                buttonClickedField.value = 'backButton';
+            });
+
+            downloadButton.addEventListener('click', function() {
+                buttonClickedField.value = 'downloadButton';
+            });
+
+            document.addEventListener('DOMContentLoaded', function() {
+                const downloadButton = document.getElementById('downloadButton');
+                downloadButton.addEventListener('click', function() {
+                    setTimeout(function() {
+                        window.location.href = '{% url 'writingapp:home' %}';
+                    }, 3000);
+                });
+            });
+
+        </script>
+    {% endblock %}
+
+
+{% endblock %}
